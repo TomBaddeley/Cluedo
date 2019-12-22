@@ -14,7 +14,7 @@ public class PlayerPiece {
     private Square location;
     private String name;
     private String owner = "N/A";
-
+    private Boolean turn = false;
 
 
     public PlayerPiece(String name){
@@ -22,7 +22,7 @@ public class PlayerPiece {
     }
 
     /**
-     * Sets the location of the palyer piece
+     * Sets the location of the player piece
      * @param s
      */
     public void setLocation(Square s){
@@ -72,6 +72,14 @@ public class PlayerPiece {
         this.owner = owner;
     }
 
+    public Boolean isTurn() {
+        return turn;
+    }
+
+    public void setTurn(Boolean turn) {
+        this.turn = turn;
+    }
+
     /**
      * Draws the player piece to the GUI
      * @param g
@@ -81,9 +89,13 @@ public class PlayerPiece {
 
     public void redraw(Graphics g, int height, int width){
         String fileName = name.replace(" ","_");
+        if(isTurn()) fileName = fileName + "_turn";
         try {
             BufferedImage charImage = ImageIO.read(new File("src/images/CharacterTokens/" + fileName + ".png"));
             g.drawImage(charImage,location.getX()*width+2,location.getY()*height+2,width,height,null);
-        }catch(IOException e){}
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+
     }
 }

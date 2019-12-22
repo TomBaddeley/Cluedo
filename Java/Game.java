@@ -128,7 +128,9 @@ public class Game {
    */
 
    public void nextTurn() {
+     getTurn().getPiece().setTurn(false);
      turn++;
+     getTurn().getPiece().setTurn(true);
    }
 
 
@@ -256,7 +258,8 @@ public class Game {
     while(!allCards.isEmpty()){
       for(Player p:players){
         if(!allCards.isEmpty()){
-          p.addCard(allCards.remove((int)(Math.random()*allCards.size())));
+          Card card = allCards.remove((int)(Math.random()*allCards.size()));
+          if(p.getHand().size() < 4) p.addCard(card);
         }
       }
     }

@@ -1,4 +1,7 @@
 package Java;
+
+import javax.swing.*;
+
 /**
  * This class extends Exception and is invoked when a user attempts an illegal move.
  *
@@ -8,6 +11,6 @@ package Java;
 public class IllegalMoveException extends Exception{
     IllegalMoveException(String message){
         super(message);
-        System.out.println(message);
+        JOptionPane.showMessageDialog(null,message,message,JOptionPane.OK_OPTION);
     }
 }

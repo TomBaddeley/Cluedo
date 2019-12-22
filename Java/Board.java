@@ -2,8 +2,13 @@ package Java;/*PLEASE DO NOT EDIT THIS CODE*/
 /*This code was generated using the UMPLE 1.28.0.4148.608b7c78e modeling language!*/
 
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowStateListener;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.List;
 
@@ -62,7 +67,7 @@ public class Board
           }
       }
       //add dead squares
-      for (int i = 10; i < 15; i++) {
+      for (int i = 10; i < 14; i++) {
           for (int j = 10; j < 17; j++) squares[j][i] = new DeadSquare(j, i);
       }
       for (int i = 0; i < 9; i++) squares[0][i] = new DeadSquare(0, i);
@@ -263,14 +268,16 @@ public class Board
 
     /**
      * Tests if an attempted move is valid
-     * @param p      The player attempting to move
-     * @param s The moves the player is attempting
+     * @param s1 Square the player is moving from.
+     * @param s2 The square the playing is moving to.
      * @return Is the move valid
      */
-  public boolean checkValidMove(PlayerPiece p, Square s){
+  public boolean checkValidMove(Square s1, Square s2){
 
-      return !((s instanceof DeadSquare) || s.getPlayer()== null);//a player may not move on a dead square or another player's square
-
+      if((s2 instanceof DeadSquare) || s2.getPlayer()!= null) return false;//a player may not move on a dead square or another player's square
+      if(s2 instanceof RoomSquare && (!s1.isEntrySquare() && !(s1 instanceof RoomSquare)))return false;
+      if(s1 instanceof RoomSquare && !(s2 instanceof RoomSquare) && !s2.isEntrySquare()) return false;
+      return true;
   }
 
     /**
@@ -281,62 +288,60 @@ public class Board
      * @return
      */
 
-  public String[] moveToString(PlayerPiece p,Square s){
-      int dy = s.getY() - p.getLocation().getY();
-      int dx = s.getX() - p.getLocation().getX();
-      String[] moves = new String[0];
-      int numOfMoves = 0;
-      ArrayList<String> temp = new ArrayList<>();
-      //move one step at a time towards the goal making sure each step is valid
-      while(!(dy == 0 && dx ==0)){
-          if(dx > 0 ){
-              temp = new ArrayList<String>(Arrays.asList(moves));
-              temp.add("1");
-              temp.add("r");
-              if(checkValidMove(p,temp.toArray(new String[0]))){
-                  moves = temp.toArray(new String[0]);
-                  dx--;
-                  continue;
-              }
-              temp.clear();
-          }
-          if(dx < 0 ){
-              temp = new ArrayList<String>(Arrays.asList(moves));
-              temp.add("1");
-              temp.add("l");
-              if(checkValidMove(p,temp.toArray(new String[0]))){
-                  moves = temp.toArray(new String[0]);
-                  dx++;
-                  continue;
-              }
-              temp.clear();
-          }
-          if(dy < 0 ){
-              temp = new ArrayList<String>(Arrays.asList(moves));
-              temp.add("1");
-              temp.add("u");
-              if(checkValidMove(p,temp.toArray(new String[0]))){
-                  moves = temp.toArray(new String[0]);
-                  dy++;
-                  continue;
-              }
-              temp.clear();
-          }
-          if(dy > 0 ){
-              temp = new ArrayList<String>(Arrays.asList(moves));
-              temp.add("1");
-              temp.add("d");
-              if(checkValidMove(p,(temp.toArray(new String[0])))){
-                  moves = temp.toArray(new String[0]);
-                  dy--;
-                  continue;
-              }
-              temp.clear();
-          }
-          return null;//stuck by a wall
-      }
+  public List<Square> moveToString(PlayerPiece p,Square s){
+        if((s instanceof DeadSquare) || s.getPlayer()!= null) return  null;
 
-      return moves;
+        Queue<Square> bfs = new ArrayDeque<>();
+        HashMap<Square,Square> parentMap = new HashMap<>();
+        bfs.add(p.getLocation());
+        boolean found = false;
+        while(!bfs.isEmpty()&&!found){
+            Square cur = bfs.poll();
+            int x = cur.getX();
+            int y = cur.getY();
+            if(x < 23){
+                Square next = squares[y][x+1];
+                if(checkValidMove(cur,next) && !parentMap.containsKey(next)) {
+                    parentMap.put(next,cur);
+                    bfs.add(next);
+                }
+                if(next.equals(s)) found = true;
+            }
+            if(y < 24){
+                Square next = squares[y+1][x];
+                if(checkValidMove(cur,next) && !parentMap.containsKey(next)) {
+                    parentMap.put(next,cur);
+                    bfs.add(next);
+                }
+                if(next.equals(s)) found = true;
+            }
+            if(x > 0){
+                Square next = squares[y][x-1];
+                if(checkValidMove(cur,next) && !parentMap.containsKey(next)) {
+                    parentMap.put(next,cur);
+                    bfs.add(next);
+                }
+                if(next.equals(s)) found = true;
+            }
+            if(y > 0){
+                Square next = squares[y-1][x];
+                if(checkValidMove(cur,next) && !parentMap.containsKey(next)) {
+                    parentMap.put(next,cur);
+                    bfs.add(next);
+                }
+                if(next.equals(s)) found = true;
+            }
+        }
+        if(!found) return null;
+
+        List<Square> sol = new ArrayList<>();
+        sol.add(s);
+        Square cur = s;
+        while(parentMap.get(cur) != null){
+            cur = parentMap.get(cur);
+            sol.add(0,cur);
+        }
+        return sol;
 
 
   }
@@ -359,104 +364,16 @@ public class Board
   }
 
     /**
-     * checks if the player is attempting a valid move
-     * @param p
-     * @param moves
-     * @return
-     */
-
-    public boolean checkValidMove(PlayerPiece p, String[] moves){
-        try {
-            int playerX = p.getLocation().getX();
-            int playerY = p.getLocation().getY();
-            int totalDx = 0, totalDy = 0;
-            List<Square> visitiedSquares = new ArrayList<>();
-            Room initialRoom = null;
-            Boolean leftRoom = false;
-
-            if (p.getLocation() instanceof RoomSquare) initialRoom = ((RoomSquare) p.getLocation()).getRoom();
-
-            for (int i = 0; i < moves.length; i = i + 2) {
-                if(moves[i]==null) break;
-                int dx = 0, dy = 0;
-                if (moves[i + 1].equalsIgnoreCase("L")) dx = -Integer.parseInt(moves[i]);
-                if (moves[i + 1].equalsIgnoreCase("R")) dx = Integer.parseInt(moves[i]);
-                if (moves[i + 1].equalsIgnoreCase("U")) dy = -Integer.parseInt(moves[i]);
-                if (moves[i + 1].equalsIgnoreCase("D")) dy = Integer.parseInt(moves[i]);
-
-                //player can not move out of bounds
-                if (dx + playerX + totalDx > 23 || dx + playerX + totalDx < 0) throw new IllegalMoveException("Player can not Move out of bounds.");
-                if (dy + playerY + totalDy > 24 || dy + playerY + totalDy < 0) throw new IllegalMoveException("Player can not Move out of bounds.");
-
-                //check if a horizontal move is ok
-                if (dx != 0) {
-                    for (int j = (dx / Math.abs(dx)); Math.abs(j) <= Math.abs(dx); j = j + (dx / Math.abs(dx))) {
-                        Square curSq = squares[playerY + totalDy][playerX + j - (dx / Math.abs(dx)) + totalDx];
-                        Square nextSq = squares[playerY + totalDy][playerX + j + totalDx];
-                        visitiedSquares.add(curSq);
-
-                        if(visitiedSquares.contains(nextSq))throw new IllegalMoveException("Cannot move on the same square twice in a single turn");
-                        if (!(nextSq instanceof RoomSquare)) leftRoom = true;
-                        if (leftRoom && nextSq instanceof RoomSquare && ((RoomSquare) nextSq).getRoom().equals(initialRoom))
-                            throw new IllegalMoveException("Cannot re-enter a room in a single turn."); //cannot re-enter a room in a single turn
-                        //can not move on another player's square
-                        if (nextSq.getPlayer() != null) throw new IllegalMoveException("Cannot move onto another player's square");
-                        if (nextSq instanceof DeadSquare) throw new IllegalMoveException("Cannot move onto a dead square");  //cant move onto a dead square
-                        if (nextSq instanceof RoomSquare && !(curSq.isEntrySquare() || curSq instanceof RoomSquare))
-                            throw new IllegalMoveException("Must enter room through entryway");//can only move to room sq from entry sq or other room sq
-                        if (!(nextSq.isEntrySquare() || nextSq instanceof RoomSquare) && (curSq instanceof RoomSquare))
-                            throw new IllegalMoveException("Must exit room through exit");//can only move from room sq to entry sq or room sq
-                    }
-                }
-                //check if a vertical move is ok
-                if (dy != 0) {
-                    for (int j = (dy / Math.abs(dy)); Math.abs(j) <= Math.abs(dy); j = j + (dy / Math.abs(dy))) {
-                        Square curSq = squares[playerY + totalDy + j - (dy / Math.abs(dy))][playerX + totalDx];
-                        Square nextSq = squares[playerY + totalDy + j][playerX + totalDx];
-                        visitiedSquares.add(curSq);
-
-                        if(visitiedSquares.contains(nextSq))throw new IllegalMoveException("Cannot move on the same square twice in a single turn");
-                        if (!(nextSq instanceof RoomSquare)) leftRoom = true;
-                        if (leftRoom && nextSq instanceof RoomSquare && ((RoomSquare) nextSq).getRoom().equals(initialRoom))
-                            throw new IllegalMoveException("Cannot re-enter a room in a single turn."); //cannot re-enter a room in a single turn
-                        //can not move on another player's square
-                        if (nextSq.getPlayer() != null) throw new IllegalMoveException("Cannot move onto another player's square");
-                        if (nextSq instanceof DeadSquare) throw new IllegalMoveException("Cannot move onto a dead square");  //cant move onto a dead square
-                        if (nextSq instanceof RoomSquare && !(curSq.isEntrySquare() || curSq instanceof RoomSquare))
-                            throw new IllegalMoveException("Must enter room through entryway");//can only move to room sq from entry sq or other room sq
-                        if (!(nextSq.isEntrySquare() || nextSq instanceof RoomSquare) && (curSq instanceof RoomSquare))
-                            throw new IllegalMoveException("Must exit room through exit");//can only move from room sq to entry sq or room sq
-                    }
-                }
-                totalDx += dx;
-                totalDy += dy;
-
-            }
-
-            return true;
-        }
-        catch(IllegalMoveException e){
-            return false;
-        }
-    }
-    /**
      * moves a player piece to a new square
      *
      * @param p  player attempting to move
-     * @param moves the square the player is attempting to move to
+     * @param s the square the player is attempting to move to
      */
 
 
-    public void movePlayer(PlayerPiece p,String[] moves){
-        int dy =0,dx =0;
-        for(int i = 0; i < moves.length; i=i+2) {
-            if(moves[i] == null) break;
-            if (moves[i + 1].equalsIgnoreCase("L")) dx += -Integer.parseInt(moves[i]);
-            if (moves[i + 1].equalsIgnoreCase("R")) dx += Integer.parseInt(moves[i]);
-            if (moves[i + 1].equalsIgnoreCase("U")) dy += -Integer.parseInt(moves[i]);
-            if (moves[i + 1].equalsIgnoreCase("D")) dy += Integer.parseInt(moves[i]);
-        }
-        p.setLocation(squares[p.getLocation().getY()+dy][p.getLocation().getX()+dx]);
+    public void movePlayer(PlayerPiece p,Square s){
+
+        p.setLocation(s);
 
     }
 
@@ -467,40 +384,10 @@ public class Board
      * @return
      */
 
-    public int numOfMoves(PlayerPiece p,String[] moves){
-        int playerX = p.getLocation().getX();
-        int playerY = p.getLocation().getY();
+    public int numOfMoves(PlayerPiece p,List<Square> moves){
         int numOfMoves = 0;
-        int totalDx =0, totalDy = 0;
-        for(int i = 0; i < moves.length; i=i+2){
-            int dx = 0, dy =0;
-            if(moves[i+1].equalsIgnoreCase("L")) dx = -Integer.parseInt(moves[i]);
-            if(moves[i+1].equalsIgnoreCase("R")) dx = Integer.parseInt(moves[i]);
-            if(moves[i+1].equalsIgnoreCase("U")) dy = -Integer.parseInt(moves[i]);
-            if(moves[i+1].equalsIgnoreCase("D")) dy = Integer.parseInt(moves[i]);
-
-
-            //count horizontal moves
-            if(dx!= 0) {
-                for (int j = (dx / Math.abs(dx)); Math.abs(j) <= Math.abs(dx); j = j + (dx / Math.abs(dx))) {
-                    Square curSq = squares[playerY + totalDy][playerX + j - (dx / Math.abs(dx)) + totalDx];
-                    Square nextSq = squares[playerY + totalDy][playerX + j + totalDx];
-                    if (!(curSq instanceof RoomSquare && nextSq instanceof RoomSquare)) numOfMoves++;
-
-
-                }
-            }
-            //count vertical moves
-            if(dy!= 0) {
-                for (int j = (dy / Math.abs(dy)); Math.abs(j) <= Math.abs(dy); j = j + (dy / Math.abs(dy))) {
-                    Square curSq = squares[playerY + totalDy + j - (dy / Math.abs(dy))][playerX + totalDx];
-                    Square nextSq = squares[playerY + totalDy + j][playerX + totalDx];
-                    if (!(curSq instanceof RoomSquare && nextSq instanceof RoomSquare)) numOfMoves++;
-
-                }
-            }
-            totalDx += dx;
-            totalDy += dy;
+        for(int i = 0; i < moves.size() - 1;i++){
+            if(!(moves.get(i) instanceof RoomSquare && moves.get(i+1) instanceof RoomSquare)) numOfMoves++;
         }
         return numOfMoves;
     }
@@ -521,9 +408,40 @@ public class Board
           }
       }
 
-
       for(Weapon w:weapons.values()) w.redraw(g,height,width);
       for(PlayerPiece p:playerPieces.values()) p.redraw(g,height,width);
+      //draws walls around the rooms
+        for(int i = 0; i < squares.length; i++){
+            for(int j=0; j < squares[0].length;j++){
+                if(i + 1 < squares.length && squares[i][j] instanceof RoomSquare && !(squares[i+1][j] instanceof RoomSquare)
+                && !squares[i+1][j].isEntrySquare()){
+                    ((Graphics2D)g).setStroke(new BasicStroke(2));
+                    g.drawLine(j*width+2,(i+1)*height+2,(j+1)*width+2,(i+1)*height+2);
+                }
+                if(i - 1 > 0 && squares[i][j] instanceof RoomSquare && !(squares[i-1][j] instanceof RoomSquare)
+                && !squares[i-1][j].isEntrySquare()){
+                    ((Graphics2D)g).setStroke(new BasicStroke(2));
+                    g.drawLine(j*width+2,(i)*height+2,(j+1)*width+2,(i)*height+2);
+                }
+                if(j - 1 > 0 && squares[i][j] instanceof RoomSquare && !(squares[i][j -1] instanceof RoomSquare) &&
+                        !squares[i][j-1].isEntrySquare()){
+                    ((Graphics2D)g).setStroke(new BasicStroke(2));
+                    g.drawLine(j*width+2,(i+1)*height+2,j*width+2,(i)*height+2);
+                }
+                if(j + 1 < squares[0].length && squares[i][j] instanceof RoomSquare && !(squares[i][j +1] instanceof RoomSquare)&&
+                        !squares[i][j+1].isEntrySquare()){
+                    ((Graphics2D)g).setStroke(new BasicStroke(2));
+                    g.drawLine((j+1)*width+2,(i+1)*height+2,(j+1)*width+2,(i)*height+2);
+                }
+            }
+        }
+        //draw center of the board
+        try {
+            BufferedImage image = ImageIO.read(new File("src/images/Center.png"));
+            g.drawImage(image,10*width + 2,10*height+2,4*width,7*height,null);
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -546,7 +464,7 @@ public class Board
      * @return Square
      */
   public Square getSquareFromMousePosition(double maxHeight,double maxWidth,double height,double width){
-      int y = (int)Math.round(25*height/maxHeight);
+      int y = (int)Math.floor(25*height/maxHeight);
       int x = (int)(24*width/maxWidth);
       y = y > 24? 24:y;
       return squares[y][x];
@@ -565,7 +483,7 @@ public class Board
             res+= squares[i][j].toString()+" ";
         }
         res+="\n";
-    }
+      }
     return res;
   }
 }

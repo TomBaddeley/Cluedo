@@ -66,10 +66,6 @@ public class Room
         return roomName;
     }
 
-    // line 28 "model.ump"
-   public void addPlayer(){
-    
-  }
 
 
   public String toString()

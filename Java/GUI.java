@@ -8,7 +8,9 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
+import java.util.List;
 
 
 import javax.imageio.ImageIO;
@@ -17,52 +19,49 @@ import javax.swing.border.Border;
 
 import static java.lang.Thread.sleep;
 
-public  class GUI {
+public class GUI {
 
 
 
 
-    private void redraw(Graphics g){
+    private static void redraw(Graphics g){
+        game.getTurn().getPiece().setTurn(true);
         game.getBoard().redraw(g, boardDrawing.getHeight(), boardDrawing.getWidth());//draws the board to the GUI
-
+        game.getTurn().getPiece().setTurn(false);
     }
 
-    private void redrawHand(Graphics g,int width,int height){
+    private static void redrawHand(Graphics g, int width, int height){
         game.getTurn().drawHand(g,width,height);//draws hand
 
     }
 
 
 
-    private Game game;
-    private Board board;
+    private static Game game;
+    private static Board board;
 
-    private JComponent boardDrawing;
-    private JComponent dieDrawing;
-    private JComponent handDrawing;
-    private JFrame frame;
+    private static JComponent boardDrawing;
+    private static JComponent dieDrawing;
+    private static JComponent handDrawing;
+    private static JFrame frame;
     private static final int DEFAULT_DRAWING_HEIGHT = 800;
-    private static final int DEFAULT_DRAWING_WIDTH = 1300;
-    private int movesLeft;
-    private int dieOne;
-    private int dieTwo;
+    private static final int DEFAULT_DRAWING_WIDTH = 800;
+    private static int movesLeft;
+    private static int dieOne;
+    private static int dieTwo;
 
 
-    private GUI() {
-        startGame();
-
-    }
 //starts the game of cluedo, this controls the flow of the game
-    private void startGame(){
+    private static void startGame(){
         try {
             //opens a dialogue message that allows to user to select the number of palyers
             Object[] possibilities = { "3", "4", "5","6"};
             String s = (String)JOptionPane.showInputDialog(
                     frame,
-                    "Selected the number of Players?",
+                    "Select the number of Players",
                     "New Cluedo game",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
+                    JOptionPane.DEFAULT_OPTION,
+                    new ImageIcon(ImageIO.read(new File("src/images/cluedo.png"))),
                     possibilities,
                     "1");
             int numOfPlayers = Integer.parseInt(s);
@@ -179,13 +178,20 @@ public  class GUI {
             ArrayList<String> tokens = new ArrayList<>();
             ArrayList<String> names = new ArrayList<>();
 
+
+
             //gets the player names and their associated tokens
-            for(int i = 0; i <numOfPlayers;i++) {
+            for(int i = 0; i <numOfPlayers;) {
                 int result = JOptionPane.showConfirmDialog(null, DialoguePanel,
-                        "PLAYER "+(i+1), JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+                        "PLAYER "+(i+1), JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE);
                 if (result == JOptionPane.OK_OPTION) {
                     if (PlayerName.getText().equals("")) {
-                        i--;
+
+                        JOptionPane.showMessageDialog(null,"Please enter a name!");
+                        continue;
+                    }
+                    if (names.contains(PlayerName.getText())){
+                        JOptionPane.showMessageDialog(null,"Please enter a unique name!");
                         continue;
                     }
                     for(Component j:charPanel.getComponents()){
@@ -193,11 +199,14 @@ public  class GUI {
                             tokens.add(((JRadioButton) j).getText());
                             ((JRadioButton) j).setSelected(false);
                             ((JRadioButton) j).getModel().setEnabled(false);
+                            names.add(PlayerName.getText());
+                            PlayerName.setText("");
+                            i++; //i only incremented when valid input is given
                         }
                     }
-                    names.add(PlayerName.getText());
-                    PlayerName.setText("");
+
                 }
+                if (result == JOptionPane.CLOSED_OPTION) return;
             }
 
             game = new Game();
@@ -206,15 +215,17 @@ public  class GUI {
             board = game.getBoard();
             board.initializeBoard();
             game.dealCards();
+
             new Thread(() -> {//updates the tooltip text depending on mouse position, this gives the user extra information
                 while(1>0) {
                     updateToolText((int) MouseInfo.getPointerInfo().getLocation().getY() - (int) boardDrawing.getLocationOnScreen().getY(),
                             (int) MouseInfo.getPointerInfo().getLocation().getX() - (int) boardDrawing.getLocationOnScreen().getX());
                     try {
-                        sleep(10);
+                        sleep(20);
                     }catch(InterruptedException e){}
                 }
             }).start();
+
             //this loop executes for the duration of the game
             while (!game.isGameWon()) {
                 Player currentTurn = game.getTurn();
@@ -224,41 +235,56 @@ public  class GUI {
                 frame.setTitle(currentTurn.toString()+"'s turn");
 
                 while (currentTurn == game.getTurn()) {
-
-                    sleep(20);
+                    sleep(5);
                 }
                 redraw();
             }
         }
         catch(Exception e){}
     }
-    //moves the player based on the position clicked on ther screen
-    private void movePlayer(MouseEvent e){
+    //moves the player based on the position clicked on their screen
+    private static void movePlayer(MouseEvent e){
         int x = e.getX()*24/ boardDrawing.getWidth();
         int y = e.getY()*25/ boardDrawing.getHeight();
         PlayerPiece p = game.getTurn().getPiece();
 
-        String[] moves = board.moveToString(p,board.getSquare(y,x));
+        List<Square> moves = board.moveToString(p,board.getSquare(y,x));
         if ( moves== null) return; //invalid move
-        if(board.numOfMoves(p,moves)<=movesLeft) {
-            movesLeft -= board.numOfMoves(p, moves);//update the number of moves the user has left
-            board.movePlayer(p, moves);
+        if(moves.size() -1 <= movesLeft) {
+            movesLeft -= board.numOfMoves(p,moves);//update the number of moves the user has left
+            for(Square s:moves) {
+                board.movePlayer(p, s);
+                redraw();
+                try {
+                    sleep(200);
+                } catch (Exception e1){}
+            }
+        } else {
+            JOptionPane.showMessageDialog(null,"Try, moving somewhere closer.","You can not move that far!",JOptionPane.OK_OPTION);
         }
-        if(movesLeft == 0) game.nextTurn();
+        if(movesLeft == 0){
+            game.nextTurn();
+            JOptionPane.showMessageDialog(null,"It's " + game.getTurn().getName() + "\'s turn!","Turn over!",JOptionPane.OK_OPTION);
+        }
 
     }
 
     /**
      * Redraws the entire GUI
      */
-    private void redraw() {
-        frame.repaint();
+    private static void redraw() {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                frame.repaint();
+            }
+        });
+
     }
 
     /**
      * Creates the required swing components to support the GUI
      */
-    private void initialise(){
+    private static void initialise(){
 
         JPanel actions = new JPanel();
         actions.setLayout(new GridLayout(4,1));
@@ -279,7 +305,7 @@ public  class GUI {
         //this JComponent displays the board
         boardDrawing = new JComponent() {
             protected void paintComponent(Graphics g) {
-                redraw(g);
+                GUI.redraw(g);
             }
         };
         boardDrawing.setPreferredSize(new Dimension(DEFAULT_DRAWING_WIDTH,
@@ -288,8 +314,12 @@ public  class GUI {
         //when mouse is released player is moved and the board is redrawn
         boardDrawing.addMouseListener(new MouseAdapter() {
             public void mouseReleased(MouseEvent e) {
-                movePlayer(e);
-                redraw();
+                Thread queryThread = new Thread() {
+                    public void run() {
+                        movePlayer(e);
+                    }
+                };
+                queryThread.start();
             }
         });
         //draws the die
@@ -297,9 +327,9 @@ public  class GUI {
             protected void paintComponent(Graphics g) {
                 try {
                     BufferedImage image = ImageIO.read(new File("src/images/die"+dieOne+".png"));
-                    g.drawImage(image,40,20,100,100,null);
+                    g.drawImage(image,20,20, dieDrawing.getWidth()/3,dieDrawing.getWidth()/3,null);
                     BufferedImage image2 = ImageIO.read(new File("src/images/die"+dieTwo+".png"));
-                    g.drawImage(image2,160,20,100,100,null);
+                    g.drawImage(image2,dieDrawing.getWidth()/3+40,20,dieDrawing.getWidth()/3,dieDrawing.getWidth()/3,null);
                 }
                 catch(IOException e){}
             }
@@ -349,11 +379,11 @@ public  class GUI {
 
         //add options to the menu
         JMenuItem suggest = new JMenuItem("Make Suggestion");
-        suggest.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_MASK));
+        suggest.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK));
         JMenuItem accuse = new JMenuItem("Make Accusation");
-        accuse.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_MASK));
+        accuse.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK));
         JMenuItem quit = new JMenuItem("Quit");
-        quit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_MASK));
+        quit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, KeyEvent.CTRL_DOWN_MASK));
 
         //adds events to the menu items when there are selected
         suggest.addActionListener(new ActionListener() {
@@ -388,7 +418,7 @@ public  class GUI {
 
         //add all the components to the frame
         frame = new JFrame("Cluedo");
-        frame.setSize(1500,1000);
+        frame.setSize(1000,1000);
         frame.setLocationRelativeTo(null);
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         frame.add(boardDrawing, BorderLayout.CENTER);
@@ -398,10 +428,11 @@ public  class GUI {
 
 
         frame.setVisible(true);
+
     }
 
     //this method is called when a user makes a suggestion or accusation
-    private void makeSuggestAcc(Boolean accusation) {
+    private static void makeSuggestAcc(Boolean accusation) {
         PlayerPiece p = game.getTurn().getPiece();
         if (!accusation && !(p.getLocation() instanceof RoomSquare)) {
             JOptionPane.showConfirmDialog(null,"You must be in a room to make a suggestion!","Hey!",JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE);
@@ -561,7 +592,7 @@ public  class GUI {
     }
 
     //updates the boards tool text depending on what the mouse is hovering over
-    private void updateToolText(int y,int x){
+    private static void updateToolText(int y, int x){
         if(!boardDrawing.contains(x,y)) return;
         Square s = board.getSquareFromMousePosition(boardDrawing.getHeight(), boardDrawing.getWidth(), y, x);
         if (s instanceof RoomSquare) {
@@ -570,12 +601,13 @@ public  class GUI {
                 boardDrawing.setToolTipText(((RoomSquare) s).getWeapon().getName());
             else boardDrawing.setToolTipText(((RoomSquare) s).getRoom().getRoomName());
         } else if (s.getPlayer() != null) boardDrawing.setToolTipText(s.getPlayer().getOwner());
-        else boardDrawing.setToolTipText("");
+        else boardDrawing.setToolTipText(null);
     }
 
 
     public static void main(String[] args){
-        new GUI();
+
+        startGame();
     }
 
 

@@ -47,15 +47,8 @@ public class Square
 
     public void redraw(Graphics g,int top,int left, int height, int width){
         try {
-            if(!entrySquare) {
-                BufferedImage image = ImageIO.read(new File("src/images/square.png"));
-                g.drawImage(image, left + 2, top + 2, width, height, null);
-            }
-            else{
-                g.setColor(Color.GREEN);
-                g.fillRect(left + 2, top + 2, width, height);
-                g.setColor(Color.BLACK);
-            }
+            BufferedImage image = ImageIO.read(new File("src/images/square.png"));
+            g.drawImage(image, left + 2, top + 2, width, height, null);
         }
         catch(IOException e){throw new Error();}
     }
